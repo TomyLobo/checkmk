@@ -637,6 +637,10 @@ class ProxmoxVeSession:
             verify_ssl: bool,
         ) -> None:
             super().__init__()
+            if "!" in credentials['username']:
+                self.pve_auth_cookie = f"PVEAPIToken={credentials['username']}={credentials['password']}"
+                return
+
             ticket_url = base_url + "api2/json/access/ticket"
             response = (
                 requests.post(url=ticket_url, verify=verify_ssl, data=credentials, timeout=timeout)
@@ -655,6 +659,9 @@ class ProxmoxVeSession:
             self.csrf_prevention_token = response["CSRFPreventionToken"]
 
         def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
+            if "PVEAPIToken=" in self.pve_auth_cookie:
+                r.headers["Authorization"] = self.pve_auth_cookie
+                return r
             r.headers["CSRFPreventionToken"] = self.csrf_prevention_token
             return r
 
@@ -671,6 +678,8 @@ class ProxmoxVeSession:
             session.cookies = requests.cookies.cookiejar_from_dict(
                 {"PVEAuthCookie": session.auth.pve_auth_cookie}
             )
+            if "!" in credentials['username']:
+                session.cookies = requests.cookies.cookiejar_from_dict({})
             session.headers["Connection"] = "keep-alive"
             session.headers["accept"] = ", ".join(
                 (
